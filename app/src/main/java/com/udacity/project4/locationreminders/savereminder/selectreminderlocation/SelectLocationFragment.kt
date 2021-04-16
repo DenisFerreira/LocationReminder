@@ -3,30 +3,35 @@ package com.udacity.project4.locationreminders.savereminder.selectreminderlocati
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.annotation.TargetApi
 import android.app.AlertDialog
 import android.content.DialogInterface
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.location.Location
+import android.net.Uri
 import android.os.Bundle
+import android.provider.Settings
+import android.util.Log
 import android.view.*
+import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.databinding.DataBindingUtil
 import com.google.android.gms.location.*
 import com.google.android.gms.maps.*
-import com.google.android.gms.maps.GoogleMap.OnMyLocationChangeListener
 import com.google.android.gms.maps.model.*
+import com.udacity.project4.BuildConfig
 import com.udacity.project4.R
 import com.udacity.project4.base.BaseFragment
 import com.udacity.project4.base.NavigationCommand
 import com.udacity.project4.databinding.FragmentSelectLocationBinding
 import com.udacity.project4.locationreminders.savereminder.SaveReminderViewModel
 import com.udacity.project4.utils.setDisplayHomeAsUpEnabled
-import kotlinx.coroutines.NonCancellable.cancel
 import org.koin.android.ext.android.inject
 import java.util.*
 
 
-class SelectLocationFragment : BaseFragment() ,OnMapReadyCallback {
+class SelectLocationFragment : BaseFragment(), OnMapReadyCallback {
 
     //Use Koin to get the view model of the SaveReminder
     override val _viewModel: SaveReminderViewModel by inject()
@@ -34,6 +39,8 @@ class SelectLocationFragment : BaseFragment() ,OnMapReadyCallback {
     private lateinit var map: GoogleMap
     private val REQUEST_LOCATION_PERMISSION = 1
     private lateinit var fusedLocationClient: FusedLocationProviderClient
+    private val runningQOrLater =
+        android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q
 
 
     override fun onCreateView(
@@ -72,6 +79,18 @@ class SelectLocationFragment : BaseFragment() ,OnMapReadyCallback {
         _viewModel.navigationCommand.value = NavigationCommand.Back
     }
 
+    /**
+     * Starts the permission check and Geofence process only if the Geofence associated with the
+     * current hint isn't yet active.
+     */
+    private fun checkPermissionsAndEnableMyLocation() {
+        if (foregroundAndBackgroundLocationPermissionApproved()) {
+            enableMyLocation()
+        } else {
+            requestForegroundAndBackgroundLocationPermissions()
+        }
+    }
+
 
     override fun onCreateOptionsMenu(menu: Menu, inflater: MenuInflater) {
         inflater.inflate(R.menu.map_options, menu)
@@ -100,10 +119,9 @@ class SelectLocationFragment : BaseFragment() ,OnMapReadyCallback {
 
     override fun onMapReady(googleMap: GoogleMap) {
         map = googleMap
-
         // Get the current location of the device and set the position of the map.
         setPoiClick(map)
-        enableMyLocation()
+        checkPermissionsAndEnableMyLocation()
     }
 
     private fun setPoiClick(map: GoogleMap) {
@@ -125,30 +143,19 @@ class SelectLocationFragment : BaseFragment() ,OnMapReadyCallback {
         }
     }
 
-    private fun isPermissionGranted() : Boolean {
-        return ContextCompat.checkSelfPermission(
-            requireContext(),
-            Manifest.permission.ACCESS_FINE_LOCATION
-        ) === PackageManager.PERMISSION_GRANTED
-    }
-
     @SuppressLint("MissingPermission")
     private fun enableMyLocation() {
-        if (isPermissionGranted()) {
-            map.setMyLocationEnabled(true)
-            fusedLocationClient.lastLocation
-                .addOnSuccessListener { location : Location? ->
-                    // Got last known location. In some rare situations this can be null.
-                    map.moveCamera(CameraUpdateFactory.newLatLngZoom(location?.let { LatLng(it.latitude, it.longitude) }, 15f))
-                }
-
-        }
-        else {
-            requestPermissions(
-                arrayOf<String>(Manifest.permission.ACCESS_FINE_LOCATION),
-                REQUEST_LOCATION_PERMISSION
-            )
-        }
+        map.setMyLocationEnabled(true)
+        fusedLocationClient.lastLocation
+            .addOnSuccessListener { location: Location? ->
+                // Got last known location. In some rare situations this can be null.
+                map.moveCamera(CameraUpdateFactory.newLatLngZoom(location?.let {
+                    LatLng(
+                        it.latitude,
+                        it.longitude
+                    )
+                }, 15f))
+            }
     }
 
     override fun onRequestPermissionsResult(
@@ -158,11 +165,82 @@ class SelectLocationFragment : BaseFragment() ,OnMapReadyCallback {
     ) {
         // Check if location permissions are granted and if so enable the
         // location data layer.
-        if (requestCode == REQUEST_LOCATION_PERMISSION) {
-            if (grantResults.size > 0 && (grantResults[0] == PackageManager.PERMISSION_GRANTED)) {
-                enableMyLocation()
-            }
+        if (
+            grantResults.isEmpty() ||
+            grantResults[Companion.LOCATION_PERMISSION_INDEX] == PackageManager.PERMISSION_DENIED ||
+            (requestCode == Companion.REQUEST_FOREGROUND_AND_BACKGROUND_PERMISSION_RESULT_CODE &&
+                    grantResults[Companion.BACKGROUND_LOCATION_PERMISSION_INDEX] ==
+                    PackageManager.PERMISSION_DENIED)
+        ) {
+            _viewModel.showSnackBar.value = getString(R.string.permission_denied_explanation)
+            startActivity(Intent().apply {
+                action = Settings.ACTION_APPLICATION_DETAILS_SETTINGS
+                data = Uri.fromParts("package", BuildConfig.APPLICATION_ID, null)
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            })
+
+        } else {
+            checkPermissionsAndEnableMyLocation()
         }
+    }
+
+    /*
+     *  Requests ACCESS_FINE_LOCATION and (on Android 10+ (Q) ACCESS_BACKGROUND_LOCATION.
+     */
+    @TargetApi(29)
+    private fun requestForegroundAndBackgroundLocationPermissions() {
+        // TODO: Step 4 add code to request foreground and background permissions
+        if (foregroundAndBackgroundLocationPermissionApproved())
+            return
+        var permissionsArray = arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)
+        val resultCode = when {
+            runningQOrLater -> {
+                permissionsArray += Manifest.permission.ACCESS_BACKGROUND_LOCATION
+                Companion.REQUEST_FOREGROUND_AND_BACKGROUND_PERMISSION_RESULT_CODE
+            }
+            else -> Companion.REQUEST_FOREGROUND_ONLY_PERMISSIONS_REQUEST_CODE
+        }
+        Log.d(Companion.TAG, "Request foreground only location permission")
+        ActivityCompat.requestPermissions(
+            requireActivity(),
+            permissionsArray,
+            resultCode
+        )
+
+
+    }
+
+    /*
+     *  Determines whether the app has the appropriate permissions across Android 10+ and all other
+     *  Android versions.
+     */
+    @TargetApi(29)
+    private fun foregroundAndBackgroundLocationPermissionApproved(): Boolean {
+        // TODO: Step 3 replace this with code to check that the foreground and background
+        //  permissions were approved
+        val foregroundLocationApproved = (PackageManager.PERMISSION_GRANTED ==
+                ActivityCompat.checkSelfPermission(
+                    requireContext(),
+                    Manifest.permission.ACCESS_FINE_LOCATION
+                ))
+        val backgroundLocationApproved =
+            if (runningQOrLater) {
+                PackageManager.PERMISSION_GRANTED ==
+                        ActivityCompat.checkSelfPermission(
+                            requireContext(),
+                            Manifest.permission.ACCESS_BACKGROUND_LOCATION
+                        )
+            } else true
+        return foregroundLocationApproved && backgroundLocationApproved
+    }
+
+    companion object {
+        private const val REQUEST_FOREGROUND_AND_BACKGROUND_PERMISSION_RESULT_CODE = 33
+        private const val REQUEST_FOREGROUND_ONLY_PERMISSIONS_REQUEST_CODE = 34
+        private const val REQUEST_TURN_DEVICE_LOCATION_ON = 29
+        private const val TAG = "SaveReminderFragment"
+        private const val LOCATION_PERMISSION_INDEX = 0
+        private const val BACKGROUND_LOCATION_PERMISSION_INDEX = 1
     }
 
 }
