@@ -33,6 +33,7 @@
     <string name="welcome">Welcome</string>
     <string name="err_enter_title">Please enter title</string>
     <string name="err_select_location">Please select location</string>
+    <string name="title">Title</string>
 
     <!-- Error strings -->
     <string name="geofence_unknown_error">Unknown error: the Geofence service is not available now.</string>
@@ -45,4 +46,10 @@
     </string>
     <string name="ok">OK</string>
     <string name="cancel">Cancel</string>
+    <string name="description">Description</string>
+    <string name="location">Location</string>
+    <string name="latitude">Latitude</string>
+    <string name="longitude">Longitude</string>
+    <string name="reminder_description">Reminder Description</string>
+    <string name="view_more_reminders">View More Reminders</string>
 </resources>

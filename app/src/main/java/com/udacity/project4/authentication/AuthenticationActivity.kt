@@ -18,6 +18,7 @@ import com.firebase.ui.auth.IdpResponse
 import com.google.android.material.snackbar.Snackbar
 import com.google.firebase.auth.FirebaseAuth
 import com.udacity.project4.R
+import com.udacity.project4.authentication.LoginViewModel.AuthenticationState.*
 import com.udacity.project4.locationreminders.RemindersActivity
 
 /**
@@ -44,11 +45,13 @@ class AuthenticationActivity : AppCompatActivity() {
 //         TODO: If the user was authenticated, send him to RemindersActivity
         viewModel.authenticationState.observe(this, Observer {
             when(it) {
-                LoginViewModel.AuthenticationState.AUTHENTICATED -> {
+                AUTHENTICATED -> {
                     val remindersIntent = Intent(applicationContext, RemindersActivity::class.java)
                     startActivity(remindersIntent)
                     finish()
                 }
+                UNAUTHENTICATED -> TODO()
+                INVALID_AUTHENTICATION -> TODO()
             }
 
         })
