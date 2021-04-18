@@ -45,7 +45,7 @@ fun sendNotification(context: Context, reminderDataItem: ReminderDataItem) {
     val notification = NotificationCompat.Builder(context, NOTIFICATION_CHANNEL_ID)
         .setSmallIcon(R.mipmap.ic_launcher)
         .setContentTitle(reminderDataItem.title)
-        .setContentText(reminderDataItem.location)
+        .setContentText(reminderDataItem.description)
         .setContentIntent(notificationPendingIntent)
         .setAutoCancel(true)
         .build()

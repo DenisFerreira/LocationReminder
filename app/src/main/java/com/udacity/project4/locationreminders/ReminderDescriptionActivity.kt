@@ -6,6 +6,7 @@ import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import androidx.databinding.DataBindingUtil
 import com.udacity.project4.R
+import com.udacity.project4.authentication.AuthenticationActivity
 import com.udacity.project4.databinding.ActivityReminderDescriptionBinding
 import com.udacity.project4.locationreminders.reminderslist.ReminderDataItem
 
@@ -26,12 +27,24 @@ class ReminderDescriptionActivity : AppCompatActivity() {
     }
 
     private lateinit var binding: ActivityReminderDescriptionBinding
+    private lateinit var reminder: ReminderDataItem
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = DataBindingUtil.setContentView(
             this,
             R.layout.activity_reminder_description
         )
+        reminder = intent.getSerializableExtra(EXTRA_ReminderDataItem) as ReminderDataItem
+        binding.reminderDataItem = reminder
+        binding.lifecycleOwner = this
+
 //        TODO: Add the implementation of the reminder details
+        binding.viewMoreBtn.setOnClickListener {
+            val intent = Intent(applicationContext, AuthenticationActivity::class.java)
+            startActivity(intent)
+            finish()
+        }
+        binding.executePendingBindings()
     }
 }
