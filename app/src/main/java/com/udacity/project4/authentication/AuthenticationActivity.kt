@@ -44,20 +44,13 @@ class AuthenticationActivity : AppCompatActivity() {
         }
 //         TODO: If the user was authenticated, send him to RemindersActivity
         viewModel.authenticationState.observe(this, Observer {
-            when(it) {
-                AUTHENTICATED -> {
-                    val remindersIntent = Intent(applicationContext, RemindersActivity::class.java)
-                    startActivity(remindersIntent)
-                    finish()
-                }
-                UNAUTHENTICATED -> TODO()
-                INVALID_AUTHENTICATION -> TODO()
+            if (it == AUTHENTICATED) {
+                val remindersIntent = Intent(applicationContext, RemindersActivity::class.java)
+                startActivity(remindersIntent)
+                finish()
             }
 
         })
-//         TODO: a bonus is to customize the sign in flow to look nice using :
-        //https://github.com/firebase/FirebaseUI-Android/blob/master/auth/README.md#custom-layout
-
     }
 
     private fun launchSignInFlow() {
