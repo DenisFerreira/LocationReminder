@@ -3,11 +3,12 @@ package com.udacity.project4.locationreminders.savereminder.selectreminderlocati
 
 import android.Manifest
 import android.annotation.SuppressLint
-import android.app.AlertDialog
 import android.content.pm.PackageManager
+import android.content.res.Resources
 import android.location.Location
 import android.os.Bundle
 import android.os.Looper
+import android.util.Log
 import android.view.*
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -17,10 +18,7 @@ import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
-import com.google.android.gms.maps.model.BitmapDescriptorFactory
-import com.google.android.gms.maps.model.LatLng
-import com.google.android.gms.maps.model.Marker
-import com.google.android.gms.maps.model.MarkerOptions
+import com.google.android.gms.maps.model.*
 import com.udacity.project4.R
 import com.udacity.project4.base.BaseFragment
 import com.udacity.project4.base.NavigationCommand
@@ -31,6 +29,8 @@ import org.koin.android.ext.android.inject
 
 
 class SelectLocationFragment : BaseFragment(), OnMapReadyCallback {
+
+    private val TAG: String = "SelectLocationFragment"
 
     //Use Koin to get the view model of the SaveReminder
     override val _viewModel: SaveReminderViewModel by inject()
@@ -58,6 +58,14 @@ class SelectLocationFragment : BaseFragment(), OnMapReadyCallback {
             .findFragmentById(R.id.map_frag) as SupportMapFragment
         mapFragment.getMapAsync(this)
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(requireActivity())
+
+        binding.saveButton.setOnClickListener {
+            if (_viewModel.selectedPOI.value != null)
+                onLocationSelected()
+            else {
+                _viewModel.showSnackBar.postValue("Please select a location")
+            }
+        }
 
         return binding.root
     }
@@ -94,30 +102,26 @@ class SelectLocationFragment : BaseFragment(), OnMapReadyCallback {
     override fun onMapReady(googleMap: GoogleMap) {
         map = googleMap
         // Get the current location of the device and set the position of the map.
+        setMapStyle(map)
         setPoiClick(map)
         enableMyLocation()
     }
 
     private fun setPoiClick(map: GoogleMap) {
         map.setOnPoiClickListener {
-            val builder = AlertDialog.Builder(requireContext())
-            builder.setMessage("Wanna create a reminder for ${it.name}?")
-                .setPositiveButton(
-                    R.string.ok
-                ) { _, _ ->
-                    _viewModel.updateLocation(it)
-                    onLocationSelected()
-                }
-                .setNegativeButton(
-                    R.string.cancel
-                ) { _, _ ->
-                    // User cancelled the dialog
-                }
-            // Create the AlertDialog object and return it
-            builder.create().show()
-
+            _viewModel.updateLocation(it)
+            map.clear()
+            val markerOptions = MarkerOptions()
+            markerOptions.position(it.latLng)
+            markerOptions.title(it.name)
+            markerOptions.icon(
+                BitmapDescriptorFactory
+                    .defaultMarker(BitmapDescriptorFactory.HUE_YELLOW)
+            )
+            currLocationMarker = map.addMarker(markerOptions)
         }
     }
+
     private var locationCallback: LocationCallback = object : LocationCallback() {
         override fun onLocationResult(locationResult: LocationResult) {
             val locationList = locationResult.locations
@@ -129,14 +133,6 @@ class SelectLocationFragment : BaseFragment(), OnMapReadyCallback {
                 }
 
                 val latLng = LatLng(location.latitude, location.longitude)
-                val markerOptions = MarkerOptions()
-                markerOptions.position(latLng)
-                markerOptions.title("Current Position")
-                markerOptions.icon(
-                    BitmapDescriptorFactory
-                    .defaultMarker(BitmapDescriptorFactory.HUE_YELLOW))
-                currLocationMarker = map.addMarker(markerOptions)
-
 
                 // TODO: zoom to the user location after taking his permission
                 map.moveCamera(CameraUpdateFactory.newLatLngZoom(latLng, 15f))
@@ -161,7 +157,8 @@ class SelectLocationFragment : BaseFragment(), OnMapReadyCallback {
     }
 
     override fun onRequestPermissionsResult(
-        requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        requestCode: Int, permissions: Array<out String>, grantResults: IntArray
+    ) {
         if (requestCode == REQUEST_LOCATION_PERMISSION) {
             if (grantResults.isNotEmpty() && (grantResults[0] == PackageManager.PERMISSION_GRANTED)) {
                 enableMyLocation()
@@ -172,10 +169,32 @@ class SelectLocationFragment : BaseFragment(), OnMapReadyCallback {
     private fun isPermissionGranted(): Boolean {
         return ContextCompat.checkSelfPermission(
             requireContext(),
-            Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+            Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
     }
 
-    companion object{
+    private fun setMapStyle(map: GoogleMap) {
+
+        // Customize the styling of the base map using a JSON object defined
+        // in a raw resource file.
+        try {
+            val success = map.setMapStyle(
+                MapStyleOptions.loadRawResourceStyle(
+                    requireContext(),
+                    R.raw.map_style
+                )
+            )
+            if (!success) {
+                Log.e(TAG, "Style parsing failed.")
+            }
+
+        } catch (e: Resources.NotFoundException) {
+            Log.e(TAG, "Can't find style. Error: ", e)
+        }
+
+    }
+
+    companion object {
         private val REQUEST_LOCATION_PERMISSION = 1
 
     }
